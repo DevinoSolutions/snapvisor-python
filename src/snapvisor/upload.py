@@ -724,7 +724,28 @@ def _read_metadata(
         parent_name = (
             transient.get("parentName") if isinstance(transient.get("parentName"), str) else None
         )
-    return (payload or None), threshold, base_name, parent_name
+    return _complete_metadata(payload), threshold, base_name, parent_name
+
+
+def _complete_metadata(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Fill in the two provenance blocks ``ScreenshotMetadata`` requires.
+
+    The API rejects a metadata object that omits ``sdk`` or ``automationLibrary``
+    (``screenshots.N.metadata.sdk is Invalid input: expected object, received
+    undefined``). The JavaScript test-runner integrations fill both in for their
+    users; a hand-written sidecar cannot be expected to, so the SDK supplies its
+    own identity and leaves either one alone when the sidecar already sets it.
+    """
+    if not payload:
+        return None
+    from snapvisor import __version__
+
+    identity = {"name": "snapvisor-python", "version": __version__}
+    for key in ("sdk", "automationLibrary"):
+        existing = payload.get(key)
+        if not isinstance(existing, dict) or not existing.get("name"):
+            payload[key] = dict(identity)
+    return payload
 
 
 def _build_to_result(build: Mapping[str, Any]) -> UploadResult:

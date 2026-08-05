@@ -69,7 +69,13 @@ OPERATION_NAMESPACE_OVERRIDES = {
 def fetch_spec(offline: bool) -> str:
     if offline:
         return VENDORED_SPEC.read_text(encoding="utf-8")
-    with urllib.request.urlopen(SPEC_URL, timeout=60) as response:  # noqa: S310
+    # An explicit User-Agent is required: the edge in front of api.snapvisor.io
+    # answers 403 to the default `Python-urllib/3.x`, which is how this job first
+    # failed on a GitHub-hosted runner.
+    request = urllib.request.Request(  # noqa: S310
+        SPEC_URL, headers={"User-Agent": "snapvisor-python-regen", "Accept": "application/yaml"}
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
         return response.read().decode("utf-8")
 
 

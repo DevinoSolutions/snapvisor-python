@@ -42,6 +42,8 @@ its name, signature, and behaviour, and a 0.1.0-era script runs against 0.2.0 un
   `skipped`, `mergeQueue`, `mergeQueuePrNumbers`, and `subset` via `BuildOptions`.
 - **Complete `ScreenshotInput`**: `metadata`, `baseName`, `parentName`, `threshold`, and
   `pwTraceKey` — 0.1.0 hardcoded all five to `None`. Build-level `metadata` is sent too.
+- Screenshot metadata is completed with the `sdk` and `automationLibrary` provenance
+  blocks the API requires, so a hand-written sidecar is accepted rather than 400ing.
 - **Sidecar discovery**: `<screenshot>.argos.json` metadata and
   `<screenshot>.pw-trace.zip` Playwright traces, matching the JavaScript SDK's convention.
   Trace targets returned by `createBuild` are now uploaded; 0.1.0 discarded them.

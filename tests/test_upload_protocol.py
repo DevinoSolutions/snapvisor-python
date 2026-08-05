@@ -452,3 +452,47 @@ async def test_aupload_matches_the_sync_wire_payload(tmp_path):
     assert storage.call_count == 1
     assert json.loads(create.calls.last.request.content)["branch"] == "main"
     assert json.loads(finalize.calls.last.request.content)["final"] is True
+
+
+@respx.mock
+def test_metadata_is_completed_with_the_provenance_blocks_the_api_requires(tmp_path):
+    # The API rejects metadata without `sdk` and `automationLibrary`; a
+    # hand-written sidecar cannot be expected to carry them, so the SDK does.
+    screenshot = write_solid_png(tmp_path / "home.png")
+    screenshot.with_name("home.png.argos.json").write_text(
+        json.dumps({"url": "https://acme.test/"}), encoding="utf-8"
+    )
+    _, finalize = _mock_build_flow()
+
+    upload(tmp_path, token="tok", branch="main", commit="a" * 40, detect_ci_environment=False)
+
+    metadata = json.loads(finalize.calls.last.request.content)["screenshots"][0]["metadata"]
+    assert metadata["sdk"]["name"] == "snapvisor-python"
+    assert metadata["sdk"]["version"]
+    assert metadata["automationLibrary"]["name"] == "snapvisor-python"
+
+
+@respx.mock
+def test_a_sidecar_may_declare_its_own_automation_library(tmp_path):
+    screenshot = write_solid_png(tmp_path / "home.png")
+    screenshot.with_name("home.png.argos.json").write_text(
+        json.dumps({"automationLibrary": {"name": "playwright", "version": "1.55.0"}}),
+        encoding="utf-8",
+    )
+    _, finalize = _mock_build_flow()
+
+    upload(tmp_path, token="tok", branch="main", commit="a" * 40, detect_ci_environment=False)
+
+    metadata = json.loads(finalize.calls.last.request.content)["screenshots"][0]["metadata"]
+    assert metadata["automationLibrary"] == {"name": "playwright", "version": "1.55.0"}
+    assert metadata["sdk"]["name"] == "snapvisor-python"
+
+
+@respx.mock
+def test_screenshots_without_a_sidecar_send_no_metadata_at_all(tmp_path):
+    write_solid_png(tmp_path / "home.png")
+    _, finalize = _mock_build_flow()
+
+    upload(tmp_path, token="tok", branch="main", commit="a" * 40, detect_ci_environment=False)
+
+    assert json.loads(finalize.calls.last.request.content)["screenshots"][0]["metadata"] is None
