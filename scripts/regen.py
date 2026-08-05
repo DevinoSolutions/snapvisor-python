@@ -132,8 +132,10 @@ def install_package(package: Path) -> None:
         shutil.rmtree(TARGET)
     shutil.copytree(package, TARGET)
     for path in sorted(TARGET.rglob("*.py")):
-        text = path.read_text(encoding="utf-8")
-        path.write_text(BANNER + text, encoding="utf-8", newline="\n")
+        # Normalise leading blank lines before stamping the banner so the
+        # installed tree cannot vary with how the generator emitted the file.
+        text = path.read_text(encoding="utf-8").lstrip("\n")
+        path.write_text(BANNER + "\n" + text, encoding="utf-8", newline="\n")
 
 
 def canonical_route(method: str, path: str) -> tuple[str, str]:
@@ -258,8 +260,16 @@ def write_registry(spec: dict) -> None:
 
 
 def format_tree() -> None:
+    """Reformat the installed tree with *this repo's* ruff config.
+
+    Format first so `ruff check` never reports line lengths that formatting is
+    about to fix, then apply safe fixes, then format again so any fix is itself
+    formatted. Ruff is invoked through ``python -m`` so the result never depends
+    on which ruff happens to be on PATH.
+    """
     ruff = [sys.executable, "-m", "ruff"]
     for args in (
+        [*ruff, "format", "--quiet", str(TARGET), str(REGISTRY)],
         [*ruff, "check", "--fix", "--quiet", str(TARGET), str(REGISTRY)],
         [*ruff, "format", "--quiet", str(TARGET), str(REGISTRY)],
     ):
@@ -267,20 +277,33 @@ def format_tree() -> None:
 
 
 def git_is_dirty() -> bool:
+    paths = [str(TARGET), str(REGISTRY), str(VENDORED_SPEC)]
     result = subprocess.run(
-        ["git", "status", "--porcelain", "--", str(TARGET), str(REGISTRY), str(VENDORED_SPEC)],
+        ["git", "status", "--porcelain", "--", *paths],
         check=True,
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
     )
-    if result.stdout.strip():
-        sys.stderr.write(
-            "Generated client is out of date with the live OpenAPI document.\n"
-            "Run `python scripts/regen.py` and commit the result.\n\n" + result.stdout
-        )
-        return True
-    return False
+    if not result.stdout.strip():
+        return False
+    # Print the diff, not just the file list: a drift failure in CI has to be
+    # diagnosable from the log alone.
+    diff = subprocess.run(
+        ["git", "diff", "--", *paths],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    sys.stderr.write(
+        "Generated client is out of date with the live OpenAPI document.\n"
+        "Run `python scripts/regen.py` and commit the result.\n\n"
+        + result.stdout
+        + "\n"
+        + diff.stdout[:20000]
+    )
+    return True
 
 
 def main() -> int:

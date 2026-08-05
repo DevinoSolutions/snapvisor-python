@@ -5,3 +5,11 @@
 # `.gitattributes`.
 project_name_override: snapvisor-generated
 package_name_override: _generated
+
+# Disable the generator's own post-processing. It shells out to `ruff` only when
+# ruff happens to be on PATH, so its output — and therefore the committed tree —
+# depended on the developer's environment: the `spec-drift` job passed locally
+# and failed on a GitHub runner for exactly this reason. With the hooks off, the
+# generator's output is a pure function of the spec and `scripts/regen.py` is the
+# only thing that formats it, with this repo's ruff config.
+post_hooks: []
