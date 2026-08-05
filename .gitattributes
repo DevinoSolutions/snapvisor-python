@@ -1,1 +1,7 @@
 * text=auto eol=lf
+
+# Machine-written by scripts/regen.py from openapi.yaml. Never hand-edit: the
+# `spec-drift` CI job regenerates from the live spec and fails on any diff.
+src/snapvisor/_generated/** linguist-generated=true
+src/snapvisor/_operations.py linguist-generated=true
+openapi.yaml linguist-generated=true

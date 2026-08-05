@@ -1,0 +1,5108 @@
+openapi: 3.1.0
+info:
+  title: Snapvisor API
+  version: 2.0.0
+  contact:
+    name: Snapvisor Support
+    url: https://snapvisor.io
+    email: support@snapvisor.io
+  termsOfService: https://snapvisor.io/terms
+x-gitbook-mcp-url: https://mcp.snapvisor.io
+externalDocs:
+  description: Snapvisor API reference
+  url: https://snapvisor.io/docs/api-reference
+servers:
+  - url: https://api.snapvisor.io/v2
+    description: API Endpoint
+tags:
+  - name: Authentication
+    description: Exchange CI and CLI credentials for a Snapvisor project token. Use
+      these endpoints to obtain the bearer token that authenticates every other
+      request.
+    x-page-icon: key
+  - name: Users
+    description: Retrieve information about the user authenticated by the current
+      personal access token.
+    x-page-icon: user
+  - name: Projects
+    description: Retrieve project metadata, either by slug or for the project tied
+      to the current token.
+    x-page-icon: folder-open
+  - name: Analytics
+    description: Retrieve account-level build and screenshot metrics over time.
+    x-page-icon: chart-no-axes-combined
+  - name: Builds
+    description: Create, finalize, update, and inspect visual testing builds,
+      including their screenshot diffs. This is the core of the visual testing
+      workflow.
+    x-page-icon: images
+  - name: Reviews
+    description: Submit, list, and dismiss reviews to approve or reject the changes
+      captured in a build.
+    x-page-icon: clipboard-check
+  - name: Comments
+    description: "Collaborate on builds with threaded comments: post and edit
+      comments, react with emojis, resolve threads, and manage notification
+      subscriptions."
+    x-page-icon: comments
+  - name: Deployments
+    description: Create, finalize, and resolve deployments to publish and serve
+      project artifacts.
+    x-page-icon: rocket
+security:
+  - projectToken: []
+paths:
+  /accounts/{accountSlug}/analytics:
+    get:
+      operationId: getAccountAnalytics
+      summary: Get account analytics
+      description: Retrieve build and screenshot metrics for an account. The personal
+        access token must be scoped to the account.
+      tags:
+        - Analytics
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - projects:read
+      parameters:
+        - in: path
+          name: accountSlug
+          schema:
+            type: string
+            minLength: 1
+            description: Slug of the account to retrieve analytics for.
+          required: true
+          description: Slug of the account to retrieve analytics for.
+        - in: query
+          name: from
+          schema:
+            description: Start of the analytics period, as an ISO 8601 datetime.
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+          required: true
+          description: Start of the analytics period, as an ISO 8601 datetime.
+        - in: query
+          name: to
+          schema:
+            description: End of the analytics period, as an ISO 8601 datetime. Defaults to
+              the current time.
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+          description: End of the analytics period, as an ISO 8601 datetime. Defaults to
+            the current time.
+        - in: query
+          name: groupBy
+          schema:
+            type: string
+            enum:
+              - day
+              - week
+              - month
+            description: Time period used to group each series data point.
+          required: true
+          description: Time period used to group each series data point.
+        - in: query
+          name: projectNames
+          schema:
+            description: Optional project name filter. Pass one value or repeat the
+              parameter for multiple projects.
+            anyOf:
+              - type: string
+                minLength: 1
+                maxLength: 100
+                pattern: ^[a-zA-Z0-9_\-.]+$
+              - type: array
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: ^[a-zA-Z0-9_\-.]+$
+          description: Optional project name filter. Pass one value or repeat the
+            parameter for multiple projects.
+      responses:
+        "200":
+          description: Account analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountAnalytics"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /accounts/{accountSlug}/projects:
+    get:
+      operationId: listProjects
+      summary: List an account's projects
+      description: List the projects of an account that are visible to the
+        authenticated user, most recently active first. Results are paginated.
+        The token must be scoped to the account.
+      tags:
+        - Projects
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - projects:read
+      parameters:
+        - in: path
+          name: accountSlug
+          schema:
+            type: string
+            minLength: 1
+            description: Slug of the account to list projects for.
+          required: true
+          description: Slug of the account to list projects for.
+        - in: query
+          name: perPage
+          schema:
+            description: Number of items per page (max 100)
+            type: string
+          description: Number of items per page (max 100)
+        - in: query
+          name: page
+          schema:
+            description: Page number
+            type: string
+          description: Page number
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pageInfo:
+                    $ref: "#/components/schemas/PageInfo"
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+                required:
+                  - pageInfo
+                  - results
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /builds:
+    post:
+      operationId: createBuild
+      summary: Create a build
+      description: Create a build and receive signed upload targets for its
+        screenshots and Playwright traces. The response lists, for every file
+        Argos doesn't already have, a secure `postUrl` with `fields` (or a
+        legacy `putUrl`) to upload it to. Supports single and parallel builds.
+      tags:
+        - Builds
+      security:
+        - projectToken: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  properties:
+                    commit:
+                      description: The commit the build is running on
+                      $ref: "#/components/schemas/Sha1Hash"
+                    branch:
+                      description: The branch the build is running on
+                      $ref: "#/components/schemas/GitBranch"
+                    pwTraceKeys:
+                      description: Keys of Playwright trace files
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/Sha256Hash"
+                    name:
+                      description: The name of the build (for multi-build setups)
+                      anyOf:
+                        - type: string
+                        - type: "null"
+                    parallel:
+                      description: Whether to run the build in parallel
+                      anyOf:
+                        - type: boolean
+                        - type: "null"
+                    parallelNonce:
+                      description: A unique nonce for the parallel build
+                      anyOf:
+                        - type: string
+                        - type: "null"
+                    prNumber:
+                      description: The pull request number
+                      anyOf:
+                        - type: integer
+                          minimum: 1
+                          maximum: 9007199254740991
+                        - type: "null"
+                    prHeadCommit:
+                      description: The head commit of the pull request
+                      anyOf:
+                        - $ref: "#/components/schemas/Sha1Hash"
+                        - type: "null"
+                    referenceCommit:
+                      description: The commit to use as a reference for the build
+                      anyOf:
+                        - $ref: "#/components/schemas/Sha1Hash"
+                        - type: "null"
+                    referenceBranch:
+                      description: The branch to use as a reference for the build
+                      anyOf:
+                        - type: string
+                        - type: "null"
+                    parentCommits:
+                      description: The parent commits of the build
+                      anyOf:
+                        - type: array
+                          items:
+                            $ref: "#/components/schemas/Sha1Hash"
+                        - type: "null"
+                    mode:
+                      description: The mode in which the build is running
+                      anyOf:
+                        - type: string
+                          enum:
+                            - ci
+                            - monitoring
+                        - type: "null"
+                    ciProvider:
+                      description: The CI provider being used
+                      anyOf:
+                        - type: string
+                        - type: "null"
+                    argosSdk:
+                      description: The version of the Snapvisor SDK being used
+                      anyOf:
+                        - type: string
+                        - type: "null"
+                    runId:
+                      description: The ID of the current run
+                      anyOf:
+                        - type: string
+                        - type: "null"
+                    runAttempt:
+                      description: The attempt number of the current run
+                      anyOf:
+                        - type: integer
+                          minimum: 1
+                          maximum: 9007199254740991
+                        - type: "null"
+                    skipped:
+                      description: Whether the build was skipped, not comparing anything and always
+                        succeeding
+                      anyOf:
+                        - type: boolean
+                        - type: "null"
+                    mergeQueue:
+                      description: Whether the build has been created in a merge queue
+                      anyOf:
+                        - type: boolean
+                        - type: "null"
+                    mergeQueuePrNumbers:
+                      description: Pull request numbers aggregated by the merge queue build. Requires
+                        `mergeQueue` to be `true`.
+                      anyOf:
+                        - minItems: 1
+                          type: array
+                          items:
+                            type: integer
+                            minimum: 1
+                            maximum: 9007199254740991
+                        - type: "null"
+                    subset:
+                      description: >-
+                        Indicates whether this build contains only a subset of
+                        screenshots.
+
+                        This is useful when a build is created from an
+                        incomplete test suite where some tests are skipped.
+                      anyOf:
+                        - type: boolean
+                        - type: "null"
+                  required:
+                    - commit
+                    - branch
+                - anyOf:
+                    - type: object
+                      properties:
+                        screenshotKeys:
+                          type: array
+                          items:
+                            $ref: "#/components/schemas/Sha256Hash"
+                          deprecated: true
+                          description: Keys of screenshot files
+                        screenshots:
+                          not: {}
+                      required:
+                        - screenshotKeys
+                    - type: object
+                      properties:
+                        screenshots:
+                          maxItems: 5000
+                          type: array
+                          items:
+                            $ref: "#/components/schemas/ScreenshotUploadRequest"
+                          description: Screenshot files to upload
+                        screenshotKeys:
+                          not: {}
+                      required:
+                        - screenshots
+      responses:
+        "201":
+          description: Result of build creation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  build:
+                    $ref: "#/components/schemas/Build"
+                  screenshots:
+                    type: array
+                    items:
+                      anyOf:
+                        - type: object
+                          properties:
+                            key:
+                              type: string
+                            putUrl:
+                              type: string
+                              format: uri
+                              deprecated: true
+                              description: Deprecated. Use postUrl and fields instead.
+                          required:
+                            - key
+                            - putUrl
+                          additionalProperties: false
+                        - type: object
+                          properties:
+                            key:
+                              type: string
+                            postUrl:
+                              type: string
+                              format: uri
+                            fields:
+                              type: object
+                              propertyNames:
+                                type: string
+                              additionalProperties:
+                                type: string
+                          required:
+                            - key
+                            - postUrl
+                            - fields
+                          additionalProperties: false
+                  pwTraces:
+                    type: array
+                    items:
+                      anyOf:
+                        - type: object
+                          properties:
+                            key:
+                              type: string
+                            putUrl:
+                              type: string
+                              format: uri
+                              deprecated: true
+                              description: Deprecated. Use postUrl and fields instead.
+                          required:
+                            - key
+                            - putUrl
+                          additionalProperties: false
+                        - type: object
+                          properties:
+                            key:
+                              type: string
+                            postUrl:
+                              type: string
+                              format: uri
+                            fields:
+                              type: object
+                              propertyNames:
+                                type: string
+                              additionalProperties:
+                                type: string
+                          required:
+                            - key
+                            - postUrl
+                            - fields
+                          additionalProperties: false
+                required:
+                  - build
+                  - screenshots
+                  - pwTraces
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /deployments:
+    post:
+      operationId: createDeployment
+      summary: Create a deployment
+      description: Create a deployment and receive signed upload URLs for the files
+        Argos doesn't already store. Files already present (matched by content
+        hash) are reused and omitted from `uploadFiles`. The environment is
+        inferred from the branch when omitted.
+      tags:
+        - Deployments
+      security:
+        - projectToken: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commit:
+                  description: The commit SHA
+                  $ref: "#/components/schemas/Sha1Hash"
+                branch:
+                  description: The branch name
+                  $ref: "#/components/schemas/GitBranch"
+                prNumber:
+                  description: The pull request number
+                  anyOf:
+                    - type: integer
+                      minimum: 1
+                      maximum: 9007199254740991
+                    - type: "null"
+                environment:
+                  description: "The deployment environment. When omitted, it is inferred from
+                    `branch`: branches matching the configured production-branch
+                    glob are treated as `production`; all others default to
+                    `preview`."
+                  type: string
+                  enum:
+                    - preview
+                    - production
+                files:
+                  minItems: 1
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      path:
+                        type: string
+                        minLength: 1
+                      hash:
+                        $ref: "#/components/schemas/Sha256Hash"
+                      size:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      contentType:
+                        type: string
+                        minLength: 1
+                    required:
+                      - path
+                      - hash
+                      - size
+                      - contentType
+                  description: List of files to deploy
+              required:
+                - commit
+                - branch
+                - files
+      responses:
+        "201":
+          description: Deployment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deploymentId:
+                    type: string
+                  uploadFiles:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        path:
+                          type: string
+                        hash:
+                          type: string
+                        uploadUrl:
+                          type: string
+                          format: uri
+                      required:
+                        - path
+                        - hash
+                        - uploadUrl
+                      additionalProperties: false
+                required:
+                  - deploymentId
+                  - uploadFiles
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /deployments/{deploymentId}:
+    get:
+      operationId: getDeployment
+      summary: Get a deployment
+      description: Retrieve a single deployment by its ID.
+      tags:
+        - Deployments
+      security:
+        - projectToken: []
+      parameters:
+        - in: path
+          name: deploymentId
+          schema:
+            type: string
+            description: The deployment ID
+          required: true
+          description: The deployment ID
+      responses:
+        "200":
+          description: Deployment details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                      - pending
+                      - ready
+                      - error
+                  environment:
+                    type: string
+                    enum:
+                      - preview
+                      - production
+                  branch:
+                    $ref: "#/components/schemas/GitBranch"
+                  commitSha:
+                    $ref: "#/components/schemas/Sha256Hash"
+                  url:
+                    type: string
+                    format: uri
+                  createdAt:
+                    type: string
+                required:
+                  - id
+                  - status
+                  - environment
+                  - branch
+                  - commitSha
+                  - url
+                  - createdAt
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /deployments/{deploymentId}/finalize:
+    post:
+      operationId: finalizeDeployment
+      summary: Finalize a deployment
+      description: Mark a deployment as ready once all of its files have been
+        uploaded. Argos assigns the deployment's aliases and starts serving it.
+      tags:
+        - Deployments
+      security:
+        - projectToken: []
+      parameters:
+        - in: path
+          name: deploymentId
+          schema:
+            type: string
+            description: The deployment ID
+          required: true
+          description: The deployment ID
+      responses:
+        "200":
+          description: Deployment finalized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                      - pending
+                      - ready
+                      - error
+                  environment:
+                    type: string
+                    enum:
+                      - preview
+                      - production
+                  branch:
+                    $ref: "#/components/schemas/GitBranch"
+                  commitSha:
+                    $ref: "#/components/schemas/Sha256Hash"
+                  url:
+                    type: string
+                    format: uri
+                  createdAt:
+                    type: string
+                required:
+                  - id
+                  - status
+                  - environment
+                  - branch
+                  - commitSha
+                  - url
+                  - createdAt
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /deployments/resolve/{domain}:
+    get:
+      operationId: resolveDeploymentDomain
+      summary: Resolve a deployment domain
+      description: Resolve a deployment domain or URL to the deployment it currently
+        serves. This endpoint is public and does not require authentication.
+      tags:
+        - Deployments
+      security: []
+      parameters:
+        - in: path
+          name: domain
+          schema:
+            type: string
+            description: A deployment domain or URL
+          required: true
+          description: A deployment domain or URL
+      responses:
+        "200":
+          description: Deployment domain resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deploymentId:
+                    type: string
+                  projectId:
+                    type: string
+                  environment:
+                    type: string
+                    enum:
+                      - preview
+                      - production
+                  visibility:
+                    type: string
+                    enum:
+                      - private
+                      - public
+                required:
+                  - deploymentId
+                  - projectId
+                  - environment
+                  - visibility
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /builds/finalize:
+    post:
+      operationId: finalizeBuilds
+      summary: Finalize parallel builds
+      description: Mark every parallel shard sharing the given `parallelNonce` as
+        complete. Once finalized, Argos compares the aggregated screenshots and
+        starts processing the build.
+      tags:
+        - Builds
+      security:
+        - projectToken: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parallelNonce:
+                  type: string
+                  minLength: 1
+              required:
+                - parallelNonce
+      responses:
+        "200":
+          description: Result of build finalization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  builds:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Build"
+                required:
+                  - builds
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /baseline:
+    post:
+      operationId: findBaseline
+      summary: Find an eligible baseline from a list of commits
+      description: "Find the build eligible to be used as a baseline among a list of
+        commits. Useful when no Git provider is connected: the CLI can send the
+        candidate ancestor commits and let Argos pick the closest one that has
+        an eligible (complete, valid, approved and not rejected) baseline
+        build."
+      tags:
+        - Builds
+      security:
+        - projectToken: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commits:
+                  minItems: 1
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Sha1Hash"
+                  description: The commits to look for an eligible baseline, ordered from the
+                    closest to the furthest ancestor. The first commit with an
+                    eligible baseline wins.
+                name:
+                  default: default
+                  description: The name of the build to find a baseline for.
+                  type: string
+                  minLength: 1
+                mode:
+                  default: ci
+                  description: The mode of the build to find a baseline for.
+                  type: string
+                  enum:
+                    - ci
+                    - monitoring
+              required:
+                - commits
+      responses:
+        "200":
+          description: The eligible baseline build, or null when none is found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  baseline:
+                    anyOf:
+                      - $ref: "#/components/schemas/Build"
+                      - type: "null"
+                    description: The eligible baseline build found among the commits, or null when
+                      none is found.
+                required:
+                  - baseline
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/cli/token:
+    post:
+      operationId: exchangeCliToken
+      summary: Exchange a CLI authorization code for a token
+      tags:
+        - Authentication
+      x-internal: true
+      security: []
+      description: Called by the CLI to exchange a PKCE authorization code for an API token.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: PKCE authorization code from the login flow
+                code_verifier:
+                  type: string
+                  description: PKCE code verifier matching the code challenge
+              required:
+                - code
+                - code_verifier
+      responses:
+        "200":
+          description: Token exchange successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Argos API token for CLI use
+                required:
+                  - token
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/github-actions/oidc/exchange:
+    post:
+      operationId: exchangeGitHubActionsOidcToken
+      summary: Exchange a GitHub Actions OIDC token for an Argos token
+      tags:
+        - Authentication
+      x-internal: true
+      description: Called by GitHub Actions to exchange an OIDC token for a
+        short-lived Argos project token.
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                oidcToken:
+                  type: string
+                  minLength: 1
+                  description: GitHub Actions OIDC token
+                repository:
+                  description: GitHub repository in owner/name format
+                  type: string
+                  pattern: ^[^/]+\/[^/]+$
+                commit:
+                  description: Expected commit SHA
+                  $ref: "#/components/schemas/Sha1Hash"
+              required:
+                - oidcToken
+      responses:
+        "200":
+          description: Token exchange successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Short-lived Argos project token
+                  expiresAt:
+                    type: string
+                    description: Token expiration date as an ISO string
+                required:
+                  - token
+                  - expiresAt
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/github-actions/tokenless/exchange:
+    post:
+      operationId: exchangeGitHubActionsTokenlessToken
+      summary: Exchange a tokenless GitHub Actions token for an Argos token
+      tags:
+        - Authentication
+      x-internal: true
+      description: Called by GitHub Actions to exchange a tokenless bearer token for a
+        short-lived Argos project token. The provided commit and branch must
+        match the GitHub workflow run.
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tokenlessToken:
+                  type: string
+                  minLength: 1
+                  description: Argos tokenless GitHub Actions bearer token
+                commit:
+                  description: Expected commit SHA
+                  $ref: "#/components/schemas/Sha1Hash"
+                branch:
+                  type: string
+                  minLength: 1
+                  description: Expected branch name
+              required:
+                - tokenlessToken
+                - commit
+                - branch
+      responses:
+        "200":
+          description: Token exchange successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Short-lived Argos project token
+                  expiresAt:
+                    type: string
+                    description: Token expiration date as an ISO string
+                required:
+                  - token
+                  - expiresAt
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /me:
+    get:
+      operationId: getMe
+      summary: Get the current user
+      description: Retrieve the user associated with the personal access token used to
+        authenticate the request, along with their accessible accounts and
+        GitHub linkage.
+      tags:
+        - Users
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - profile
+      responses:
+        "200":
+          description: Authenticated user, accounts, and GitHub linkage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /project:
+    get:
+      operationId: getAuthProject
+      summary: Get the current project
+      description: Retrieve the project associated with the project token used to
+        authenticate the request.
+      tags:
+        - Projects
+      security:
+        - projectToken: []
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /builds/{buildId}:
+    put:
+      operationId: updateBuild
+      summary: Update a build
+      description: Add screenshots to an existing build and update its metadata. Used
+        to push the screenshots of a parallel shard, identified by
+        `parallelIndex` and `parallelTotal`.
+      tags:
+        - Builds
+      security:
+        - projectToken: []
+      parameters:
+        - in: path
+          name: buildId
+          schema:
+            $ref: "#/components/schemas/BuildId"
+          required: true
+          description: A unique identifier for the build
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                screenshots:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ScreenshotInput"
+                parallel:
+                  anyOf:
+                    - type: boolean
+                    - type: "null"
+                parallelTotal:
+                  anyOf:
+                    - type: integer
+                      minimum: -1
+                      maximum: 9007199254740991
+                    - type: "null"
+                parallelIndex:
+                  anyOf:
+                    - type: integer
+                      minimum: 1
+                      maximum: 9007199254740991
+                    - type: "null"
+                final:
+                  description: Only used for non-parallel builds. Indicates that this is the last
+                    request of the build, so Argos can finalize it. A build
+                    whose screenshots are too large to fit in a single request
+                    can split them across several sequential requests, leaving
+                    `final` falsy on every request but the last. Defaults to
+                    `true`.
+                  anyOf:
+                    - type: boolean
+                    - type: "null"
+                metadata:
+                  $ref: "#/components/schemas/BuildMetadata"
+              required:
+                - screenshots
+      responses:
+        "200":
+          description: Result of build update
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  build:
+                    $ref: "#/components/schemas/Build"
+                required:
+                  - build
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /projects:
+    post:
+      operationId: createProject
+      summary: Create a project
+      description: Create a new project in an account you administer. The
+        authenticated personal access token must be scoped to the target
+        account, and the acting user must be an administrator of it.
+      tags:
+        - Projects
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - projects:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: ^[a-zA-Z0-9_\-.]+$
+                  description: Name of the project to create. Must be unique within the account
+                    (case-insensitive) and cannot be a reserved name.
+                accountSlug:
+                  type: string
+                  minLength: 1
+                  description: Slug of the account (personal or team) that will own the project.
+                    The personal access token must be scoped to this account and
+                    the acting user must be one of its administrators.
+              required:
+                - name
+                - accountSlug
+      responses:
+        "201":
+          description: Project created successfully — returns the project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}:
+    get:
+      operationId: getProject
+      summary: Get a project
+      description: Retrieve a project by its owner (account slug) and project name.
+      tags:
+        - Projects
+      security:
+        - projectToken: []
+        - personalAccessToken: []
+        - oauth2:
+            - projects:read
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds:
+    get:
+      operationId: listBuilds
+      summary: List a project's builds
+      description: List the builds of a project, most recent first. Results are
+        paginated. Use `search` to match builds by name, branch or commit, and
+        `distinctName` to return only the latest build per name and commit.
+      tags:
+        - Builds
+      security:
+        - projectToken: []
+        - personalAccessToken: []
+        - oauth2:
+            - projects:read
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: query
+          name: perPage
+          schema:
+            description: Number of items per page (max 100)
+            type: string
+          description: Number of items per page (max 100)
+        - in: query
+          name: page
+          schema:
+            description: Page number
+            type: string
+          description: Page number
+        - in: query
+          name: head
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: headSha
+          schema:
+            $ref: "#/components/schemas/Sha1Hash"
+        - in: query
+          name: search
+          schema:
+            description: Search builds by name, branch (substring) or commit (prefix).
+            type: string
+            minLength: 1
+          description: Search builds by name, branch (substring) or commit (prefix).
+        - in: query
+          name: distinctName
+          schema:
+            description: Only return the latest builds created, unique by name and commit.
+            type: string
+          description: Only return the latest builds created, unique by name and commit.
+      responses:
+        "200":
+          description: List of builds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pageInfo:
+                    $ref: "#/components/schemas/PageInfo"
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Build"
+                required:
+                  - pageInfo
+                  - results
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}:
+    get:
+      operationId: getBuild
+      summary: Get a build
+      description: Retrieve a single build by its number within a project, including
+        its status and metadata.
+      tags:
+        - Builds
+      security:
+        - projectToken: []
+        - personalAccessToken: []
+        - oauth2:
+            - projects:read
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+      responses:
+        "200":
+          description: Build
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Build"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/diffs:
+    get:
+      operationId: listBuildDiffs
+      summary: List a build's screenshot diffs
+      description: List the screenshot diffs of a build, with pagination. Each diff
+        compares a baseline screenshot to the one captured by the build. Each
+        diff also carries its test's flakiness metrics and, when it is a change,
+        its ignore state and occurrence count — so you can tell whether a change
+        is worth reviewing or is just a flaky one. Use `needsReview` to return
+        only the diffs that require review.
+      tags:
+        - Builds
+      security:
+        - projectToken: []
+        - personalAccessToken: []
+        - oauth2:
+            - projects:read
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: query
+          name: perPage
+          schema:
+            description: Number of items per page (max 100)
+            type: string
+          description: Number of items per page (max 100)
+        - in: query
+          name: page
+          schema:
+            description: Page number
+            type: string
+          description: Page number
+        - in: query
+          name: needsReview
+          schema:
+            description: Only return diffs that require review. Matches `changed`, `added`,
+              and `removed`, except `removed` is excluded for subset builds.
+            type: string
+          description: Only return diffs that require review. Matches `changed`, `added`,
+            and `removed`, except `removed` is excluded for subset builds.
+        - in: query
+          name: metricsPeriod
+          schema:
+            default: LAST_7_DAYS
+            description: Period over which the test flakiness metrics are computed.
+            type: string
+            enum:
+              - LAST_24_HOURS
+              - LAST_3_DAYS
+              - LAST_7_DAYS
+              - LAST_30_DAYS
+              - LAST_90_DAYS
+          description: Period over which the test flakiness metrics are computed.
+      responses:
+        "200":
+          description: List of screenshot diffs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pageInfo:
+                    $ref: "#/components/schemas/PageInfo"
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SnapshotDiff"
+                required:
+                  - pageInfo
+                  - results
+                additionalProperties: false
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/changes/{changeId}/ignore:
+    post:
+      operationId: ignoreChange
+      summary: Ignore a test change
+      description: Ignore a test change so its diffs no longer require review and are
+        automatically approved on future builds. Use it to silence a change that
+        has been identified as flaky.
+      tags:
+        - Changes
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - reviews:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: changeId
+          schema:
+            type: string
+            description: Identifier of the change to update, as returned in a diff's
+              `change.id`.
+          required: true
+          description: Identifier of the change to update, as returned in a diff's
+            `change.id`.
+        - in: query
+          name: metricsPeriod
+          schema:
+            default: LAST_7_DAYS
+            description: Period over which the test flakiness metrics are computed.
+            type: string
+            enum:
+              - LAST_24_HOURS
+              - LAST_3_DAYS
+              - LAST_7_DAYS
+              - LAST_30_DAYS
+              - LAST_90_DAYS
+          description: Period over which the test flakiness metrics are computed.
+      responses:
+        "200":
+          description: Change ignored — returns the updated change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Change"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/changes/{changeId}/unignore:
+    post:
+      operationId: unignoreChange
+      summary: Unignore a test change
+      description: Stop ignoring a test change so its diffs require review again on
+        future builds.
+      tags:
+        - Changes
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - reviews:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: changeId
+          schema:
+            type: string
+            description: Identifier of the change to update, as returned in a diff's
+              `change.id`.
+          required: true
+          description: Identifier of the change to update, as returned in a diff's
+            `change.id`.
+        - in: query
+          name: metricsPeriod
+          schema:
+            default: LAST_7_DAYS
+            description: Period over which the test flakiness metrics are computed.
+            type: string
+            enum:
+              - LAST_24_HOURS
+              - LAST_3_DAYS
+              - LAST_7_DAYS
+              - LAST_30_DAYS
+              - LAST_90_DAYS
+          description: Period over which the test flakiness metrics are computed.
+      responses:
+        "200":
+          description: Change unignored — returns the updated change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Change"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/reviews:
+    get:
+      operationId: listReviews
+      summary: List the reviews submitted on a build
+      description: List the reviews submitted on a build, with pagination.
+      tags:
+        - Reviews
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - projects:read
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+      responses:
+        "200":
+          description: Build reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BuildReview"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+    post:
+      operationId: createReview
+      summary: Create a review on a build
+      description: Submit a review on a build to approve or reject the changes it captured.
+      tags:
+        - Reviews
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - reviews:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  description: 'Review event to apply to the build: "APPROVE", "REJECT" or
+                    "COMMENT". Required when `conclusion` is not provided.'
+                  type: string
+                  enum:
+                    - APPROVE
+                    - REJECT
+                    - COMMENT
+                conclusion:
+                  deprecated: true
+                  description: 'Deprecated: use `event` instead. Overall review conclusion for the
+                    build: "APPROVE" or "REQUEST_CHANGES".'
+                  type: string
+                  enum:
+                    - APPROVE
+                    - REQUEST_CHANGES
+                body:
+                  description: Optional comment to attach to the review. Either Markdown text or
+                    the JSON representation of a rich-text document.
+                snapshots:
+                  default: []
+                  description: Optional per-snapshot review decisions. When omitted, only the
+                    build-level review is recorded.
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: The ID of the snapshot to review
+                      conclusion:
+                        type: string
+                        enum:
+                          - APPROVE
+                          - REQUEST_CHANGES
+                        description: 'Review conclusion for this individual snapshot: "APPROVE" or
+                          "REQUEST_CHANGES"'
+                    required:
+                      - id
+                      - conclusion
+      responses:
+        "200":
+          description: Review submitted successfully — returns the review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildReview"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /repos/{owner}/{repo}/commits/{sha}/pulls:
+    get:
+      operationId: getRepoCommitPulls
+      security:
+        - personalAccessToken: []
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: repo
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: sha
+          schema:
+            $ref: "#/components/schemas/Sha1Hash"
+          required: true
+          description: SHA1 hash
+      responses:
+        "200":
+          description: GitHub PR associated with the commit (or null)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrContext"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/reviews/{reviewId}/dismiss:
+    post:
+      operationId: dismissReview
+      summary: Dismiss a submitted review on a build
+      description: Dismiss a previously submitted review on a build, clearing its
+        effect on the build's review status.
+      tags:
+        - Reviews
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - reviews:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: reviewId
+          schema:
+            type: string
+            description: The ID of the review
+          required: true
+          description: The ID of the review
+      responses:
+        "200":
+          description: Review dismissed successfully — returns the review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildReview"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/comments:
+    get:
+      operationId: listComments
+      summary: List the comments on a build
+      description: List the comments on a build, with pagination.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:read
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+      responses:
+        "200":
+          description: Build comments, oldest first. Replies carry a threadId pointing at
+            their root comment.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+    post:
+      operationId: createComment
+      summary: Post a comment (or reply) on a build
+      description: Post a comment on a build. Start a new thread, reply to an existing
+        one with `threadId`, optionally anchor the comment to a screenshot diff,
+        or attach it to your pending review with `addToReview`.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:
+                  anyOf:
+                    - type: string
+                    - type: object
+                      propertyNames:
+                        type: string
+                      additionalProperties: {}
+                  description: Comment content. Either Markdown text or the JSON representation of
+                    a rich-text document.
+                threadId:
+                  description: Root comment ID to reply to.
+                  type: string
+                screenshotDiffId:
+                  description: Screenshot diff to anchor the comment to. Required when anchor is
+                    set.
+                  type: string
+                anchor:
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: point
+                        x:
+                          type: number
+                        y:
+                          type: number
+                      required:
+                        - type
+                        - x
+                        - y
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: lines
+                        from:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        to:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                      required:
+                        - type
+                        - from
+                        - to
+                  description: Where on the referenced screenshot diff the comment points. A point
+                    uses normalized (0–1) coordinates; lines is a 1-based
+                    inclusive range.
+                  type: object
+                addToReview:
+                  description: Attach the comment to your pending review (created if needed)
+                    instead of posting it immediately. Ignored for replies,
+                    which inherit their thread's review.
+                  type: boolean
+              required:
+                - body
+      responses:
+        "201":
+          description: Comment created successfully — returns the comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/comments/{commentId}:
+    get:
+      operationId: getComment
+      summary: Get a single comment on a build
+      description: Retrieve a single comment on a build by its ID.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:read
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: The ID of the comment
+          required: true
+          description: The ID of the comment
+      responses:
+        "200":
+          description: Comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+    patch:
+      operationId: updateComment
+      summary: Update a comment on a build
+      description: Update the body of a comment on a build. Only the comment's author
+        can edit it.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: The ID of the comment
+          required: true
+          description: The ID of the comment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:
+                  anyOf:
+                    - type: string
+                    - type: object
+                      propertyNames:
+                        type: string
+                      additionalProperties: {}
+                  description: Comment content. Either Markdown text or the JSON representation of
+                    a rich-text document.
+              required:
+                - body
+      responses:
+        "200":
+          description: Comment updated successfully — returns the comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+    delete:
+      operationId: deleteComment
+      summary: Delete a comment on a build
+      description: Delete a comment on a build. Only the comment's author can delete it.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: The ID of the comment
+          required: true
+          description: The ID of the comment
+      responses:
+        "200":
+          description: Comment deleted successfully — returns the comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/comments/{commentId}/reactions:
+    post:
+      operationId: addCommentReaction
+      summary: Add an emoji reaction to a comment
+      description: Add an emoji reaction to a comment on behalf of the authenticated user.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: The ID of the comment
+          required: true
+          description: The ID of the comment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                emoji:
+                  type: string
+                  description: The emoji to react with.
+              required:
+                - emoji
+      responses:
+        "200":
+          description: Reaction added — returns the comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+    delete:
+      operationId: removeCommentReaction
+      summary: Remove an emoji reaction from a comment
+      description: Remove an emoji reaction previously added by the authenticated user
+        from a comment.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: The ID of the comment
+          required: true
+          description: The ID of the comment
+        - in: query
+          name: emoji
+          schema:
+            type: string
+            description: The emoji reaction to remove.
+          required: true
+          description: The emoji reaction to remove.
+      responses:
+        "200":
+          description: Reaction removed — returns the comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/comments/{commentId}/resolve:
+    post:
+      operationId: resolveCommentThread
+      summary: Mark a comment thread as resolved
+      description: Mark a comment thread as resolved.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: ID of any comment in the thread
+          required: true
+          description: ID of any comment in the thread
+      responses:
+        "200":
+          description: Thread resolved — returns the root comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/comments/{commentId}/unresolve:
+    post:
+      operationId: unresolveCommentThread
+      summary: Reopen a resolved comment thread
+      description: Reopen a previously resolved comment thread.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: ID of any comment in the thread
+          required: true
+          description: ID of any comment in the thread
+      responses:
+        "200":
+          description: Thread reopened — returns the root comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+  /projects/{owner}/{project}/builds/{buildNumber}/comments/{commentId}/subscription:
+    post:
+      operationId: subscribeCommentThread
+      summary: Subscribe to a comment thread's notifications
+      description: Subscribe the authenticated user to a comment thread to receive
+        notifications about new replies.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: ID of any comment in the thread
+          required: true
+          description: ID of any comment in the thread
+      responses:
+        "200":
+          description: Subscribed — returns the root comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+    delete:
+      operationId: unsubscribeCommentThread
+      summary: Unsubscribe from a comment thread's notifications
+      description: Unsubscribe the authenticated user from a comment thread's notifications.
+      tags:
+        - Comments
+      security:
+        - personalAccessToken: []
+        - oauth2:
+            - comments:write
+      parameters:
+        - in: path
+          name: owner
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: project
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: path
+          name: buildNumber
+          schema:
+            $ref: "#/components/schemas/BuildNumberParam"
+          required: true
+          description: The build number
+        - in: path
+          name: commentId
+          schema:
+            type: string
+            description: ID of any comment in the thread
+          required: true
+          description: ID of any comment in the thread
+      responses:
+        "200":
+          description: Unsubscribed — returns the root comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-gitbook-mcp: true
+components:
+  schemas:
+    Sha1Hash:
+      type: string
+      pattern: ^[0-9a-f]{40}$
+      description: SHA1 hash
+    GitBranch:
+      type: string
+      minLength: 1
+    Sha256Hash:
+      type: string
+      pattern: ^[A-Fa-f0-9]{64}$
+      description: SHA256 hash
+    ScreenshotUploadRequest:
+      type: object
+      properties:
+        key:
+          $ref: "#/components/schemas/Sha256Hash"
+        contentType:
+          description: Content type of the snapshot file
+          type: string
+      required:
+        - key
+        - contentType
+      description: Screenshot file to upload
+    BuildId:
+      type: string
+      description: A unique identifier for the build
+      example: "12345"
+    ScreenshotInput:
+      type: object
+      properties:
+        key:
+          type: string
+          pattern: ^[A-Fa-f0-9]{64}$
+        name:
+          type: string
+        baseName:
+          anyOf:
+            - type: string
+            - type: "null"
+        parentName:
+          anyOf:
+            - type: string
+            - type: "null"
+        metadata:
+          anyOf:
+            - type: object
+              properties:
+                $schema:
+                  description: Ignored. Can be set to get completions, validations and
+                    documentation in some editors.
+                  examples:
+                    - https://api.argos-ci.com/v2/screenshot-metadata.json
+                  type: string
+                url:
+                  description: The URL of the page that was screenshotted
+                  anyOf:
+                    - type: string
+                    - type: "null"
+                previewUrl:
+                  description: An URL to an accessible preview of the screenshot
+                  anyOf:
+                    - type: string
+                    - type: "null"
+                viewport:
+                  anyOf:
+                    - type: object
+                      properties:
+                        width:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                          description: The width of the viewport
+                        height:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                          description: The height of the viewport
+                      required:
+                        - width
+                        - height
+                      description: The viewport dimensions when the screenshot was taken
+                    - type: "null"
+                colorScheme:
+                  description: The color scheme when the screenshot was taken
+                  anyOf:
+                    - type: string
+                      enum:
+                        - light
+                        - dark
+                    - type: "null"
+                mediaType:
+                  description: The media type when the screenshot was taken
+                  anyOf:
+                    - type: string
+                      enum:
+                        - screen
+                        - print
+                    - type: "null"
+                test:
+                  anyOf:
+                    - type: object
+                      properties:
+                        id:
+                          description: The unique identifier of the test
+                          anyOf:
+                            - type: string
+                            - type: "null"
+                        title:
+                          type: string
+                          description: The title of the test
+                        titlePath:
+                          type: array
+                          items:
+                            type: string
+                          description: The path of titles leading to the test
+                        retries:
+                          description: The number of retries for the test
+                          anyOf:
+                            - type: integer
+                              minimum: 0
+                              maximum: 9007199254740991
+                            - type: "null"
+                        retry:
+                          description: The current retry count
+                          anyOf:
+                            - type: integer
+                              minimum: 0
+                              maximum: 9007199254740991
+                            - type: "null"
+                        repeat:
+                          description: The repeat count for the test
+                          anyOf:
+                            - type: integer
+                              minimum: 0
+                              maximum: 9007199254740991
+                            - type: "null"
+                        location:
+                          description: The location of the test in the source code
+                          type: object
+                          properties:
+                            file:
+                              type: string
+                              description: The located file
+                            line:
+                              type: integer
+                              minimum: 0
+                              maximum: 9007199254740991
+                              description: The line number in the file
+                            column:
+                              type: integer
+                              minimum: 0
+                              maximum: 9007199254740991
+                              description: The column number in the file
+                          required:
+                            - file
+                            - line
+                            - column
+                        annotations:
+                          description: Annotations associated to the test
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              type:
+                                type: string
+                                description: The type of annotation
+                              description:
+                                description: The description of the annotation
+                                type: string
+                              location:
+                                description: The location of the annotation in the source code
+                                type: object
+                                properties:
+                                  file:
+                                    type: string
+                                    description: The located file
+                                  line:
+                                    type: integer
+                                    minimum: 0
+                                    maximum: 9007199254740991
+                                    description: The line number in the file
+                                  column:
+                                    type: integer
+                                    minimum: 0
+                                    maximum: 9007199254740991
+                                    description: The column number in the file
+                                required:
+                                  - file
+                                  - line
+                                  - column
+                            required:
+                              - type
+                            description: A test annotation
+                        tags:
+                          description: Tags associated to the test
+                          type: array
+                          items:
+                            type: string
+                      required:
+                        - title
+                        - titlePath
+                      description: The test that generated the screenshot
+                    - type: "null"
+                browser:
+                  anyOf:
+                    - type: object
+                      properties:
+                        name:
+                          type: string
+                          description: The name of the browser
+                        version:
+                          type: string
+                          description: The version of the browser
+                      required:
+                        - name
+                        - version
+                      description: The browser that generated the screenshot
+                    - type: "null"
+                automationLibrary:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: The name of the automation library
+                    version:
+                      type: string
+                      description: The version of the automation library
+                  required:
+                    - name
+                    - version
+                  description: The automation library that generated the screenshot
+                sdk:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: The name of the Argos SDK
+                    version:
+                      type: string
+                      description: The version of the Argos SDK
+                  required:
+                    - name
+                    - version
+                  description: The Argos SDK that generated the screenshot
+                story:
+                  description: Storybook story metadata
+                  anyOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Unique ID of the story
+                        tags:
+                          description: Tags attached to the story
+                          type: array
+                          items:
+                            type: string
+                        mode:
+                          description: Story mode
+                          type: string
+                        play:
+                          description: True if the story has a play function
+                          type: boolean
+                      required:
+                        - id
+                      description: Storybook story metadata
+                    - type: "null"
+                tags:
+                  description: Tags associated to the screenshot
+                  type: array
+                  items:
+                    type: string
+              required:
+                - automationLibrary
+                - sdk
+              description: Metadata about a screenshot
+            - type: "null"
+        pwTraceKey:
+          anyOf:
+            - type: string
+              pattern: ^[A-Fa-f0-9]{64}$
+            - type: "null"
+        threshold:
+          anyOf:
+            - type: number
+              minimum: 0
+              maximum: 1
+            - type: "null"
+        contentType:
+          description: Content type of the snapshot file
+          type: string
+      required:
+        - key
+        - name
+      description: Screenshot input
+    BuildMetadata:
+      description: Build metadata
+      type: object
+      properties:
+        testReport:
+          description: Test suite report
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - passed
+                - failed
+                - timedout
+                - interrupted
+              description: Status of the test suite
+            stats:
+              type: object
+              properties:
+                startTime:
+                  description: Date when the test suite started
+                  type: string
+                duration:
+                  description: Duration of the test suite in milliseconds
+                  type: number
+          required:
+            - status
+    BuildNumberParam:
+      description: The build number
+      example: 42
+      type: string
+    AccountAnalytics:
+      type: object
+      properties:
+        screenshots:
+          type: object
+          properties:
+            series:
+              type: array
+              items:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  projects:
+                    type: object
+                    propertyNames:
+                      type: string
+                    additionalProperties:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    description: Counts keyed by project ID. Use the sibling `projects` array to
+                      resolve each project name.
+                  ts:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Unix timestamp in milliseconds at the start of the period.
+                required:
+                  - total
+                  - projects
+                  - ts
+                additionalProperties: false
+            all:
+              type: object
+              properties:
+                total:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                projects:
+                  type: object
+                  propertyNames:
+                    type: string
+                  additionalProperties:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  description: Counts keyed by project ID. Use the sibling `projects` array to
+                    resolve each project name.
+              required:
+                - total
+                - projects
+              additionalProperties: false
+            projects:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                    pattern: ^[a-zA-Z0-9_\-.]+$
+                required:
+                  - id
+                  - name
+                additionalProperties: false
+          required:
+            - series
+            - all
+            - projects
+          additionalProperties: false
+        builds:
+          type: object
+          properties:
+            series:
+              type: array
+              items:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  projects:
+                    type: object
+                    propertyNames:
+                      type: string
+                    additionalProperties:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    description: Counts keyed by project ID. Use the sibling `projects` array to
+                      resolve each project name.
+                  changesDetected:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  noChanges:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  accepted:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  rejected:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  ts:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Unix timestamp in milliseconds at the start of the period.
+                required:
+                  - total
+                  - projects
+                  - changesDetected
+                  - noChanges
+                  - accepted
+                  - rejected
+                  - ts
+                additionalProperties: false
+            all:
+              type: object
+              properties:
+                total:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                projects:
+                  type: object
+                  propertyNames:
+                    type: string
+                  additionalProperties:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  description: Counts keyed by project ID. Use the sibling `projects` array to
+                    resolve each project name.
+                changesDetected:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                noChanges:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                accepted:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                rejected:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+              required:
+                - total
+                - projects
+                - changesDetected
+                - noChanges
+                - accepted
+                - rejected
+              additionalProperties: false
+            projects:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                    pattern: ^[a-zA-Z0-9_\-.]+$
+                required:
+                  - id
+                  - name
+                additionalProperties: false
+          required:
+            - series
+            - all
+            - projects
+          additionalProperties: false
+      required:
+        - screenshots
+        - builds
+      additionalProperties: false
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+            required:
+              - message
+            additionalProperties: false
+      required:
+        - error
+      additionalProperties: false
+      description: Error response
+    PageInfo:
+      type: object
+      properties:
+        total:
+          type: number
+          description: Total number of items
+        page:
+          type: number
+          description: Current page number
+        perPage:
+          type: number
+          description: Number of items per page
+      required:
+        - total
+        - page
+        - perPage
+      additionalProperties: false
+      description: Page information
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+        account:
+          $ref: "#/components/schemas/Account"
+        name:
+          type: string
+          minLength: 1
+        defaultBaseBranch:
+          type: string
+        hasRemoteContentAccess:
+          type: boolean
+      required:
+        - id
+        - account
+        - name
+        - defaultBaseBranch
+        - hasRemoteContentAccess
+      additionalProperties: false
+      description: Project
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+          minLength: 1
+      required:
+        - id
+        - slug
+      additionalProperties: false
+      description: Account
+    Build:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/BuildId"
+        number:
+          $ref: "#/components/schemas/BuildNumber"
+        head:
+          description: The head reference of the build
+          $ref: "#/components/schemas/BuildGitReference"
+        base:
+          anyOf:
+            - $ref: "#/components/schemas/BuildGitReference"
+            - type: "null"
+          description: The base reference of the build
+        status:
+          anyOf:
+            - type: string
+              enum:
+                - accepted
+                - rejected
+            - type: string
+              enum:
+                - no-changes
+                - changes-detected
+            - type: string
+              enum:
+                - expired
+                - pending
+                - progress
+                - error
+                - aborted
+          description: The status of the build
+        conclusion:
+          anyOf:
+            - type: string
+              enum:
+                - no-changes
+                - changes-detected
+            - type: "null"
+          description: The conclusion of the build
+        stats:
+          anyOf:
+            - type: object
+              properties:
+                added:
+                  type: number
+                  description: Added snapshots
+                removed:
+                  type: number
+                  description: Removed snapshots
+                unchanged:
+                  type: number
+                  description: Unchanged snapshots
+                changed:
+                  type: number
+                  description: Changed snapshots
+                ignored:
+                  type: number
+                  description: Ignored snapshots
+                failure:
+                  type: number
+                  description: Failure screenshots
+                retryFailure:
+                  type: number
+                  description: Retry failure screenshots
+                total:
+                  type: number
+                  description: Total number of snapshots
+              required:
+                - added
+                - removed
+                - unchanged
+                - changed
+                - ignored
+                - failure
+                - retryFailure
+                - total
+              additionalProperties: false
+            - type: "null"
+          description: Stats of the diffs present in the build
+        metadata:
+          anyOf:
+            - type: object
+              properties:
+                testReport:
+                  description: Test suite report
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                      enum:
+                        - passed
+                        - failed
+                        - timedout
+                        - interrupted
+                      description: Status of the test suite
+                    stats:
+                      type: object
+                      properties:
+                        startTime:
+                          description: Date when the test suite started
+                          type: string
+                        duration:
+                          description: Duration of the test suite in milliseconds
+                          type: number
+                      additionalProperties: false
+                  required:
+                    - status
+                  additionalProperties: false
+              additionalProperties: false
+              description: Metadata associated to the build
+            - type: "null"
+        url:
+          type: string
+          format: uri
+          description: The URL of the build
+        notification:
+          anyOf:
+            - type: object
+              properties:
+                description:
+                  type: string
+                context:
+                  type: string
+                github:
+                  type: object
+                  properties:
+                    state:
+                      type: string
+                      enum:
+                        - pending
+                        - success
+                        - error
+                        - failure
+                  required:
+                    - state
+                  additionalProperties: false
+                gitlab:
+                  type: object
+                  properties:
+                    state:
+                      type: string
+                      enum:
+                        - pending
+                        - running
+                        - success
+                        - failed
+                        - canceled
+                  required:
+                    - state
+                  additionalProperties: false
+                url:
+                  type: string
+                  format: uri
+              required:
+                - description
+                - context
+                - github
+                - gitlab
+                - url
+              additionalProperties: false
+            - type: "null"
+          description: The notification payload for the build
+      required:
+        - id
+        - number
+        - head
+        - base
+        - status
+        - conclusion
+        - stats
+        - metadata
+        - url
+        - notification
+      additionalProperties: false
+      description: Build
+    BuildNumber:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+      description: The build number
+      example: 42
+    BuildGitReference:
+      type: object
+      properties:
+        sha:
+          description: The commit SHA
+          $ref: "#/components/schemas/Sha1Hash"
+        branch:
+          type: string
+          description: The branch name
+      required:
+        - sha
+        - branch
+      additionalProperties: false
+      description: Git reference
+    Me:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/MeUser"
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/MeAccount"
+        github:
+          $ref: "#/components/schemas/MeGithub"
+      required:
+        - user
+        - accounts
+        - github
+      additionalProperties: false
+      description: Authenticated user, their accessible accounts, and GitHub linkage
+    MeUser:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          anyOf:
+            - type: string
+            - type: "null"
+        email:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - name
+        - email
+      additionalProperties: false
+      description: Authenticated user
+    MeAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          anyOf:
+            - type: string
+            - type: "null"
+        type:
+          type: string
+          enum:
+            - user
+            - team
+        mcpAccessIncluded:
+          type: boolean
+      required:
+        - id
+        - slug
+        - name
+        - type
+        - mcpAccessIncluded
+      additionalProperties: false
+      description: Account visible to the authenticated user
+    MeGithub:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        login:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - connected
+        - login
+      additionalProperties: false
+      description: GitHub linkage status for the authenticated user's account
+    SnapshotDiff:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the snapshot diff
+        name:
+          type: string
+          description: Name of the snapshot diff
+        status:
+          type: string
+          enum:
+            - pending
+            - removed
+            - failure
+            - added
+            - changed
+            - unchanged
+            - retryFailure
+            - ignored
+          description: Status of the snapshot diff
+        score:
+          anyOf:
+            - type: number
+            - type: "null"
+          description: Similarity score between snapshots
+        group:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Grouping key for the snapshot diff
+        parentName:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Parent name of the snapshot (usually the story id)
+        url:
+          anyOf:
+            - type: string
+              format: uri
+            - type: "null"
+          description: URL of the diff image
+        base:
+          anyOf:
+            - type: object
+              properties:
+                id:
+                  type: string
+                  description: Unique identifier of the snapshot
+                name:
+                  type: string
+                  description: Name of the snapshot
+                metadata:
+                  anyOf:
+                    - type: object
+                      properties:
+                        $schema:
+                          description: Ignored. Can be set to get completions, validations and
+                            documentation in some editors.
+                          examples:
+                            - https://api.argos-ci.com/v2/screenshot-metadata.json
+                          type: string
+                        url:
+                          description: The URL of the page that was screenshotted
+                          anyOf:
+                            - type: string
+                            - type: "null"
+                        previewUrl:
+                          description: An URL to an accessible preview of the screenshot
+                          anyOf:
+                            - type: string
+                            - type: "null"
+                        viewport:
+                          anyOf:
+                            - type: object
+                              properties:
+                                width:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 9007199254740991
+                                  description: The width of the viewport
+                                height:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 9007199254740991
+                                  description: The height of the viewport
+                              required:
+                                - width
+                                - height
+                              additionalProperties: false
+                              description: The viewport dimensions when the screenshot was taken
+                            - type: "null"
+                        colorScheme:
+                          description: The color scheme when the screenshot was taken
+                          anyOf:
+                            - type: string
+                              enum:
+                                - light
+                                - dark
+                            - type: "null"
+                        mediaType:
+                          description: The media type when the screenshot was taken
+                          anyOf:
+                            - type: string
+                              enum:
+                                - screen
+                                - print
+                            - type: "null"
+                        test:
+                          anyOf:
+                            - type: object
+                              properties:
+                                id:
+                                  description: The unique identifier of the test
+                                  anyOf:
+                                    - type: string
+                                    - type: "null"
+                                title:
+                                  type: string
+                                  description: The title of the test
+                                titlePath:
+                                  type: array
+                                  items:
+                                    type: string
+                                  description: The path of titles leading to the test
+                                retries:
+                                  description: The number of retries for the test
+                                  anyOf:
+                                    - type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                                retry:
+                                  description: The current retry count
+                                  anyOf:
+                                    - type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                                repeat:
+                                  description: The repeat count for the test
+                                  anyOf:
+                                    - type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                                location:
+                                  description: The location of the test in the source code
+                                  type: object
+                                  properties:
+                                    file:
+                                      type: string
+                                      description: The located file
+                                    line:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                      description: The line number in the file
+                                    column:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                      description: The column number in the file
+                                  required:
+                                    - file
+                                    - line
+                                    - column
+                                  additionalProperties: false
+                                annotations:
+                                  description: Annotations associated to the test
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      type:
+                                        type: string
+                                        description: The type of annotation
+                                      description:
+                                        description: The description of the annotation
+                                        type: string
+                                      location:
+                                        description: The location of the annotation in the source code
+                                        type: object
+                                        properties:
+                                          file:
+                                            type: string
+                                            description: The located file
+                                          line:
+                                            type: integer
+                                            minimum: 0
+                                            maximum: 9007199254740991
+                                            description: The line number in the file
+                                          column:
+                                            type: integer
+                                            minimum: 0
+                                            maximum: 9007199254740991
+                                            description: The column number in the file
+                                        required:
+                                          - file
+                                          - line
+                                          - column
+                                        additionalProperties: false
+                                    required:
+                                      - type
+                                    additionalProperties: false
+                                    description: A test annotation
+                                tags:
+                                  description: Tags associated to the test
+                                  type: array
+                                  items:
+                                    type: string
+                              required:
+                                - title
+                                - titlePath
+                              additionalProperties: false
+                              description: The test that generated the screenshot
+                            - type: "null"
+                        browser:
+                          anyOf:
+                            - type: object
+                              properties:
+                                name:
+                                  type: string
+                                  description: The name of the browser
+                                version:
+                                  type: string
+                                  description: The version of the browser
+                              required:
+                                - name
+                                - version
+                              additionalProperties: false
+                              description: The browser that generated the screenshot
+                            - type: "null"
+                        automationLibrary:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: The name of the automation library
+                            version:
+                              type: string
+                              description: The version of the automation library
+                          required:
+                            - name
+                            - version
+                          additionalProperties: false
+                          description: The automation library that generated the screenshot
+                        sdk:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: The name of the Argos SDK
+                            version:
+                              type: string
+                              description: The version of the Argos SDK
+                          required:
+                            - name
+                            - version
+                          additionalProperties: false
+                          description: The Argos SDK that generated the screenshot
+                        story:
+                          description: Storybook story metadata
+                          anyOf:
+                            - type: object
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique ID of the story
+                                tags:
+                                  description: Tags attached to the story
+                                  type: array
+                                  items:
+                                    type: string
+                                mode:
+                                  description: Story mode
+                                  type: string
+                                play:
+                                  description: True if the story has a play function
+                                  type: boolean
+                              required:
+                                - id
+                              additionalProperties: false
+                              description: Storybook story metadata
+                            - type: "null"
+                        tags:
+                          description: Tags associated to the screenshot
+                          type: array
+                          items:
+                            type: string
+                      required:
+                        - automationLibrary
+                        - sdk
+                      additionalProperties: false
+                      description: Metadata about a screenshot
+                    - type: "null"
+                width:
+                  anyOf:
+                    - type: number
+                    - type: "null"
+                  description: Width of the screenshot in pixels
+                height:
+                  anyOf:
+                    - type: number
+                    - type: "null"
+                  description: Height of the screenshot in pixels
+                url:
+                  type: string
+                  format: uri
+                  description: Public URL of the snapshot
+                contentType:
+                  type: string
+                  description: Content type of the snapshot file
+              required:
+                - id
+                - name
+                - metadata
+                - width
+                - height
+                - url
+                - contentType
+              additionalProperties: false
+              description: Snapshot associated to a diff
+            - type: "null"
+        head:
+          anyOf:
+            - type: object
+              properties:
+                id:
+                  type: string
+                  description: Unique identifier of the snapshot
+                name:
+                  type: string
+                  description: Name of the snapshot
+                metadata:
+                  anyOf:
+                    - type: object
+                      properties:
+                        $schema:
+                          description: Ignored. Can be set to get completions, validations and
+                            documentation in some editors.
+                          examples:
+                            - https://api.argos-ci.com/v2/screenshot-metadata.json
+                          type: string
+                        url:
+                          description: The URL of the page that was screenshotted
+                          anyOf:
+                            - type: string
+                            - type: "null"
+                        previewUrl:
+                          description: An URL to an accessible preview of the screenshot
+                          anyOf:
+                            - type: string
+                            - type: "null"
+                        viewport:
+                          anyOf:
+                            - type: object
+                              properties:
+                                width:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 9007199254740991
+                                  description: The width of the viewport
+                                height:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 9007199254740991
+                                  description: The height of the viewport
+                              required:
+                                - width
+                                - height
+                              additionalProperties: false
+                              description: The viewport dimensions when the screenshot was taken
+                            - type: "null"
+                        colorScheme:
+                          description: The color scheme when the screenshot was taken
+                          anyOf:
+                            - type: string
+                              enum:
+                                - light
+                                - dark
+                            - type: "null"
+                        mediaType:
+                          description: The media type when the screenshot was taken
+                          anyOf:
+                            - type: string
+                              enum:
+                                - screen
+                                - print
+                            - type: "null"
+                        test:
+                          anyOf:
+                            - type: object
+                              properties:
+                                id:
+                                  description: The unique identifier of the test
+                                  anyOf:
+                                    - type: string
+                                    - type: "null"
+                                title:
+                                  type: string
+                                  description: The title of the test
+                                titlePath:
+                                  type: array
+                                  items:
+                                    type: string
+                                  description: The path of titles leading to the test
+                                retries:
+                                  description: The number of retries for the test
+                                  anyOf:
+                                    - type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                                retry:
+                                  description: The current retry count
+                                  anyOf:
+                                    - type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                                repeat:
+                                  description: The repeat count for the test
+                                  anyOf:
+                                    - type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                                location:
+                                  description: The location of the test in the source code
+                                  type: object
+                                  properties:
+                                    file:
+                                      type: string
+                                      description: The located file
+                                    line:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                      description: The line number in the file
+                                    column:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                      description: The column number in the file
+                                  required:
+                                    - file
+                                    - line
+                                    - column
+                                  additionalProperties: false
+                                annotations:
+                                  description: Annotations associated to the test
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      type:
+                                        type: string
+                                        description: The type of annotation
+                                      description:
+                                        description: The description of the annotation
+                                        type: string
+                                      location:
+                                        description: The location of the annotation in the source code
+                                        type: object
+                                        properties:
+                                          file:
+                                            type: string
+                                            description: The located file
+                                          line:
+                                            type: integer
+                                            minimum: 0
+                                            maximum: 9007199254740991
+                                            description: The line number in the file
+                                          column:
+                                            type: integer
+                                            minimum: 0
+                                            maximum: 9007199254740991
+                                            description: The column number in the file
+                                        required:
+                                          - file
+                                          - line
+                                          - column
+                                        additionalProperties: false
+                                    required:
+                                      - type
+                                    additionalProperties: false
+                                    description: A test annotation
+                                tags:
+                                  description: Tags associated to the test
+                                  type: array
+                                  items:
+                                    type: string
+                              required:
+                                - title
+                                - titlePath
+                              additionalProperties: false
+                              description: The test that generated the screenshot
+                            - type: "null"
+                        browser:
+                          anyOf:
+                            - type: object
+                              properties:
+                                name:
+                                  type: string
+                                  description: The name of the browser
+                                version:
+                                  type: string
+                                  description: The version of the browser
+                              required:
+                                - name
+                                - version
+                              additionalProperties: false
+                              description: The browser that generated the screenshot
+                            - type: "null"
+                        automationLibrary:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: The name of the automation library
+                            version:
+                              type: string
+                              description: The version of the automation library
+                          required:
+                            - name
+                            - version
+                          additionalProperties: false
+                          description: The automation library that generated the screenshot
+                        sdk:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: The name of the Argos SDK
+                            version:
+                              type: string
+                              description: The version of the Argos SDK
+                          required:
+                            - name
+                            - version
+                          additionalProperties: false
+                          description: The Argos SDK that generated the screenshot
+                        story:
+                          description: Storybook story metadata
+                          anyOf:
+                            - type: object
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique ID of the story
+                                tags:
+                                  description: Tags attached to the story
+                                  type: array
+                                  items:
+                                    type: string
+                                mode:
+                                  description: Story mode
+                                  type: string
+                                play:
+                                  description: True if the story has a play function
+                                  type: boolean
+                              required:
+                                - id
+                              additionalProperties: false
+                              description: Storybook story metadata
+                            - type: "null"
+                        tags:
+                          description: Tags associated to the screenshot
+                          type: array
+                          items:
+                            type: string
+                      required:
+                        - automationLibrary
+                        - sdk
+                      additionalProperties: false
+                      description: Metadata about a screenshot
+                    - type: "null"
+                width:
+                  anyOf:
+                    - type: number
+                    - type: "null"
+                  description: Width of the screenshot in pixels
+                height:
+                  anyOf:
+                    - type: number
+                    - type: "null"
+                  description: Height of the screenshot in pixels
+                url:
+                  type: string
+                  format: uri
+                  description: Public URL of the snapshot
+                contentType:
+                  type: string
+                  description: Content type of the snapshot file
+              required:
+                - id
+                - name
+                - metadata
+                - width
+                - height
+                - url
+                - contentType
+              additionalProperties: false
+              description: Snapshot associated to a diff
+            - type: "null"
+        test:
+          anyOf:
+            - $ref: "#/components/schemas/Test"
+            - type: "null"
+        change:
+          anyOf:
+            - type: object
+              properties:
+                id:
+                  type: string
+                  description: Unique identifier of the change (a test + fingerprint pair). Use it
+                    with the ignore/unignore endpoints.
+                ignored:
+                  type: boolean
+                  description: Whether this change is currently ignored. Ignored changes no longer
+                    require review and are automatically approved.
+                occurrences:
+                  type: number
+                  description: Number of times this change has been seen over the metrics period.
+                    A high count for a recurring change is a strong flakiness
+                    signal.
+              required:
+                - id
+                - ignored
+                - occurrences
+              additionalProperties: false
+            - type: "null"
+      required:
+        - id
+        - name
+        - status
+        - score
+        - group
+        - parentName
+        - url
+        - base
+        - head
+        - test
+        - change
+      additionalProperties: false
+      description: Snapshot diff
+    Test:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the test
+        name:
+          type: string
+          description: Name of the test
+        buildName:
+          type: string
+          description: Name of the build the test belongs to
+        metrics:
+          $ref: "#/components/schemas/TestMetrics"
+      required:
+        - id
+        - name
+        - buildName
+        - metrics
+      additionalProperties: false
+      description: Test associated to a diff, with flakiness metrics to help decide
+        whether a change is worth reviewing.
+    TestMetrics:
+      type: object
+      properties:
+        total:
+          type: number
+          description: Number of builds in which this test ran over the metrics period.
+        changes:
+          type: number
+          description: Number of times the test changed (produced a diff) over the metrics
+            period.
+        uniqueChanges:
+          type: number
+          description: Number of changes that were seen only once over the metrics period.
+            A high ratio of unique changes is a strong flakiness signal.
+        stability:
+          type: number
+          description: Ratio of builds without a change, between 0 and 1. `1` means the
+            test never changed.
+        consistency:
+          type: number
+          description: How consistent the changes are, between 0 and 1. `1` means changes
+            repeat the same way; a low value means changes are erratic.
+        flakiness:
+          type: number
+          description: Overall flakiness score between 0 and 1, derived from stability and
+            consistency. `0` means stable, `1` means highly flaky.
+      required:
+        - total
+        - changes
+        - uniqueChanges
+        - stability
+        - consistency
+        - flakiness
+      additionalProperties: false
+      description: Flakiness metrics of a test over the requested period.
+    Change:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the change (a test + fingerprint pair). Use it
+            with the ignore/unignore endpoints.
+        ignored:
+          type: boolean
+          description: Whether this change is currently ignored. Ignored changes no longer
+            require review and are automatically approved.
+        occurrences:
+          type: number
+          description: Number of times this change has been seen over the metrics period.
+            A high count for a recurring change is a strong flakiness signal.
+      required:
+        - id
+        - ignored
+        - occurrences
+      additionalProperties: false
+      description: "A test change: a specific visual difference (fingerprint) of a
+        test that can be ignored to silence flaky changes."
+    BuildReview:
+      type: object
+      properties:
+        id:
+          type: string
+        buildId:
+          type: string
+        state:
+          type: string
+          enum:
+            - approved
+            - rejected
+            - commented
+            - pending
+        user:
+          anyOf:
+            - $ref: "#/components/schemas/BuildReviewUser"
+            - type: "null"
+          description: The user who submitted the review.
+        dismissedAt:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Date the review was dismissed, null if not dismissed.
+        dismissedBy:
+          anyOf:
+            - $ref: "#/components/schemas/BuildReviewUser"
+            - type: "null"
+          description: The user who dismissed the review, if any.
+        date:
+          type: string
+          description: Date the review was created.
+      required:
+        - id
+        - buildId
+        - state
+        - user
+        - dismissedAt
+        - dismissedBy
+        - date
+      additionalProperties: false
+      description: Build review
+    BuildReviewUser:
+      type: object
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - slug
+        - name
+      additionalProperties: false
+      description: A user
+    PrContext:
+      anyOf:
+        - type: object
+          properties:
+            number:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            title:
+              type: string
+            body:
+              anyOf:
+                - type: string
+                - type: "null"
+            state:
+              type: string
+            url:
+              type: string
+            changedFiles:
+              type: array
+              items:
+                $ref: "#/components/schemas/PrContextChangedFile"
+          required:
+            - number
+            - title
+            - body
+            - state
+            - url
+            - changedFiles
+          additionalProperties: false
+        - type: "null"
+      description: GitHub PR associated with the commit, or null if the commit isn't
+        part of any PR.
+    PrContextChangedFile:
+      type: object
+      properties:
+        filename:
+          type: string
+        status:
+          type: string
+        additions:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        deletions:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+      required:
+        - filename
+        - status
+        - additions
+        - deletions
+      additionalProperties: false
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+        buildId:
+          type: string
+        threadId:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Root comment ID when this comment is a reply.
+        body:
+          description: Rich-text JSON content of the comment.
+        text:
+          type: string
+          description: Plain-text rendering of the comment content.
+        author:
+          anyOf:
+            - $ref: "#/components/schemas/User"
+            - type: "null"
+        screenshotDiffId:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Screenshot diff this comment is anchored to, if any.
+        anchor:
+          anyOf:
+            - oneOf:
+                - type: object
+                  properties:
+                    type:
+                      type: string
+                      const: point
+                    x:
+                      type: number
+                    y:
+                      type: number
+                  required:
+                    - type
+                    - x
+                    - y
+                  additionalProperties: false
+                - type: object
+                  properties:
+                    type:
+                      type: string
+                      const: lines
+                    from:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    to:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                  required:
+                    - type
+                    - from
+                    - to
+                  additionalProperties: false
+              description: Where on the referenced screenshot diff the comment points. A point
+                uses normalized (0–1) coordinates; lines is a 1-based inclusive
+                range.
+              type: object
+            - type: "null"
+          description: Where the comment points on its screenshot diff. Null means the
+            whole diff.
+        pending:
+          type: boolean
+          description: Whether the comment belongs to a pending (unsubmitted) review and
+            is only visible to its author.
+        resolvedAt:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Date the thread was resolved, null if not resolved. Only set on a
+            root comment.
+        editedAt:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Date the comment was last edited, null if never edited.
+        createdAt:
+          type: string
+          description: Date the comment was posted.
+        reactions:
+          type: array
+          items:
+            type: object
+            properties:
+              emoji:
+                type: string
+                description: The emoji used for the reaction.
+              count:
+                type: number
+                description: Number of users who reacted with this emoji.
+              users:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+                description: The users who reacted with this emoji.
+            required:
+              - emoji
+              - count
+              - users
+            additionalProperties: false
+            description: Reactions of a single emoji on a comment.
+      required:
+        - id
+        - buildId
+        - threadId
+        - body
+        - text
+        - author
+        - screenshotDiffId
+        - anchor
+        - pending
+        - resolvedAt
+        - editedAt
+        - createdAt
+        - reactions
+      additionalProperties: false
+      description: A comment posted on a build.
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - slug
+        - name
+      additionalProperties: false
+      description: A user.
+  securitySchemes:
+    projectToken:
+      type: http
+      scheme: bearer
+      bearerFormat: Project Token
+      description: |-
+        Authenticate as a **project** with a project token.
+
+        Send it as a bearer token in the `Authorization` header:
+
+        ```http
+        Authorization: Bearer <project-token>
+        ```
+
+        You can find your project token in your Argos project settings.
+        Project tokens are used by CI and the SDK to create builds and
+        deployments.
+    personalAccessToken:
+      type: http
+      scheme: bearer
+      bearerFormat: Personal Access Token
+      description: |-
+        Authenticate as a **user** with a personal access token.
+
+        Send it as a bearer token in the `Authorization` header:
+
+        ```http
+        Authorization: Bearer <personal-access-token>
+        ```
+
+        Personal access tokens act on behalf of the user that created them
+        and are required by endpoints that perform user actions, such as
+        reviewing builds and posting comments.
+    oauth2:
+      type: oauth2
+      description: |-
+        Authenticate as a **user** via an OAuth 2.1 access token obtained
+        through the authorization-code (+ PKCE) flow. Used by the CLI and by
+        MCP clients/agents. The token acts on behalf of the authorizing user,
+        limited to the granted scopes and organizations.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://app.snapvisor.io/oauth/authorize
+          tokenUrl: https://app.snapvisor.io/oauth/token
+          refreshUrl: https://app.snapvisor.io/oauth/token
+          scopes:
+            profile: Read your Snapvisor profile and the list of teams you belong to.
+            projects:read: Read your projects, builds, screenshots, diffs, tests, and
+              analytics.
+            projects:write: Create and configure projects and their settings.
+            builds:write: Create and upload builds and screenshots.
+            reviews:write: Approve, reject, or dismiss build reviews and ignore changes.
+            comments:read: Read build comments and threads.
+            comments:write: Post, edit, and delete comments, add reactions, and manage
+              subscriptions.
+            account:admin: Manage organization settings and members.
