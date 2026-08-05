@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets publish.yml require this exact suite on the SHA it is about to ship.
+  workflow_call:
+    secrets:
+      ARGOS_TOKEN:
+        required: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -42,6 +47,22 @@ jobs:
       - name: Run unit tests
         run: pytest tests --ignore=tests/e2e
 
+  spec-drift:
+    # API coverage is only *structural* if something notices when the API moves.
+    # This regenerates from the LIVE spec and fails on any diff, so the SDK
+    # lagging the platform breaks the build here instead of surfacing as a 404
+    # in a user's pipeline.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install codegen toolchain
+        run: python -m pip install --upgrade pip && pip install -e ".[dev,codegen]"
+      - name: Regenerate from https://api.snapvisor.io/v2/openapi.yaml
+        run: python scripts/regen.py --check
+
   e2e-test:
     runs-on: ubuntu-latest
     needs: [lint, unit-test]
@@ -53,8 +74,9 @@ jobs:
       - name: Install dev dependencies
         run: python -m pip install --upgrade pip && pip install -e ".[dev]"
       - name: Run prod e2e upload
-        # The e2e uploads a real build to the prod project devino/snapvisor-js-e2e.
-        # It skips loudly if the secret is absent (e.g. on forks).
+        # Uploads a real build to the prod project devino/snapvisor-js-e2e —
+        # with metadata, a threshold, and a Playwright trace — and reads it back.
+        # Skips loudly if the secret is absent (e.g. on forks).
         env:
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
         run: pytest tests/e2e -v
