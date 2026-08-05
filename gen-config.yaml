@@ -1,0 +1,7 @@
+# openapi-python-client configuration for `snapvisor._generated`.
+#
+# The generated tree is copied into `src/snapvisor/_generated/` by
+# `scripts/regen.py` and is NEVER hand-edited — see that script and
+# `.gitattributes`.
+project_name_override: snapvisor-generated
+package_name_override: _generated
